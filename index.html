@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ガンダム風 チャット & オーディオ通話</title>
+    <style>
+        /* ガンダム風デザイン */
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #1e1e1e; /* ダークテーマ */
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* チャットボックス */
+        #chatBox {
+            height: 300px;
+            overflow-y: scroll;
+            margin: 20px;
+            background-color: #333;
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid #f44336; /* 赤色の枠線 */
+            font-size: 1.2em;
+        }
+
+        /* メッセージ入力エリア */
+        input[type="text"], button {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 8px;
+            border: 2px solid #f44336; /* 赤色の枠線 */
+            font-size: 1em;
+            background-color: #333;
+            color: white;
+        }
+
+        input[type="text"]:focus, button:focus {
+            outline: none;
+            border-color: #00bcd4; /* 青色で強調 */
+        }
+
+        /* ガンダム風通知 */
+        .notification {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #f44336; /* 赤色 */
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            z-index: 9999;
+            display: none;
+            animation: notificationEffect 0.5s ease-in-out;
+            box-shadow: 0px 0px 10px rgba(255, 0, 0, 0.5); /* 赤い光の影 */
+        }
+
+        @keyframes notificationEffect {
+            0% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        /* 通知を強調する効果 */
+        #notification {
+            font-size: 1.5em;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 位置情報マップ */
+        #map {
+            height: 300px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        /* ファイルプレビュー */
+        #filePreview img, #filePreview audio {
+            max-width: 100%;
+            max-height: 200px;
+            margin-top: 10px;
+        }
+
+        /* チャットメッセージ */
+        .chat-message {
+            margin-bottom: 10px;
+        }
+
+        .chat-message span {
+            font-weight: bold;
+            color: #00bcd4; /* ガンダムの青 */
+        }
+
+        .file-link {
+            color: #aaffff;
+            text-decoration: none;
+        }
+
+        .file-link:hover {
+            text-decoration: underline;
+        }
+
+        /* ボタンスタイル */
+        .btn {
+            background-color: #f44336;
+            color: white;
+            border: 2px solid #f44336;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #ff5722;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="nameSection">
+        <input type="text" id="nameInput" placeholder="名前を入力">
+        <button id="nameSubmitButton" class="btn">名前設定</button>
+    </div>
+
+    <div id="chatSection" style="display:none;">
+        <div id="chatBox"></div>
+        <input type="text" id="messageInput" placeholder="メッセージを入力">
+        <button id="sendMessageButton" class="btn">送信</button>
+        <button id="callButton" style="display:none;" class="btn">通話開始</button>
+        <button id="fileUploadButton" class="btn">ファイルアップロード</button>
+        <button id="locationButton" class="btn">位置情報送信</button>
+        <button id="shareButton" class="btn">ページ共有</button>
+        <div id="filePreview"></div>
+        <input type="file" id="fileInput" style="display:none;">
+        <button id="sendFileButton" style="display:none;" class="btn">ファイル送信</button>
+        <div id="map" style="display:none;"></div>
+    </div>
+
+    <!-- 通知用要素 -->
+    <div id="notification" class="notification">新しいメッセージが届きました！</div>
+
+    <script>
+        let userName = '';
+
+        // DOM要素の取得
+        const messageInput = document.getElementById('messageInput');
+        const sendMessageButton = document.getElementById('sendMessageButton');
+        const fileUploadButton = document.getElementById('fileUploadButton');
+        const fileInput = document.getElementById('fileInput');
+        const sendFileButton = document.getElementById('sendFileButton');
+        const filePreview = document.getElementById('filePreview');
+        const chatBox = document.getElementById('chatBox');
+        const nameInput = document.getElementById('nameInput');
+        const nameSubmitButton = document.getElementById('nameSubmitButton');
+        const locationButton = document.getElementById('locationButton');
+        const mapElement = document.getElementById('map');
+        const shareButton = document.getElementById('shareButton');
+        const notification = document.getElementById('notification'); // 通知要素
+
+        // 名前設定イベント
+        nameSubmitButton.addEventListener('click', () => {
+            userName = nameInput.value.trim();
+            if (userName) {
+                document.getElementById('nameSection').style.display = 'none';
+                document.getElementById('chatSection').style.display = 'block';
+            }
+        });
+
+        // チャットメッセージ送信イベント
+        sendMessageButton.addEventListener('click', () => {
+            const message = messageInput.value;
+            if (message.trim()) {
+                appendToChat(`${userName}: ${message}`);
+                messageInput.value = '';  // Clear input field
+                showNotification(); // 新しいメッセージ通知
+            }
+        });
+
+        // ファイルアップロードイベント
+        fileUploadButton.addEventListener('click', () => fileInput.click());
+
+        // ファイル選択後のプレビュー
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const fileReader = new FileReader();
+
+                // 画像のプレビュー表示
+                if (file.type.startsWith('image/')) {
+                    fileReader.onload = () => {
+                        const img = document.createElement('img');
+                        img.src = fileReader.result;
+                        img.id = 'imagePreview';
+                        filePreview.innerHTML = '';
+                        filePreview.appendChild(img);
+                    };
+                    fileReader.readAsDataURL(file);
+                }
+                // PDFのプレビュー表示
+                else if (file.type === 'application/pdf') {
+                    const fileURL = URL.createObjectURL(file);
+                    const pdfLink = document.createElement('a');
+                    pdfLink.href = fileURL;
+                    pdfLink.textContent = 'PDFを開く';
+                    filePreview.innerHTML = '';
+                    filePreview.appendChild(pdfLink);
+                }
+                // 音声ファイルのプレビュー表示
+                else if (file.type.startsWith('audio/')) {
+                    const audioElement = document.createElement('audio');
+                    audioElement.controls = true;
+                    audioElement.src = URL.createObjectURL(file);
+                    filePreview.innerHTML = '';
+                    filePreview.appendChild(audioElement);
+                }
+
+                // ダウンロードリンクの作成
+                const downloadLink = document.createElement('a');
+                downloadLink.href = URL.createObjectURL(file);
+                downloadLink.download = file.name;
+                downloadLink.classList.add('file-link');
+                downloadLink.textContent = 'このファイルをダウンロード';
+
+                // プレビューの下にダウンロードリンクを表示
+                filePreview.appendChild(downloadLink);
+
+                sendFileButton.style.display = 'inline-block';
+            }
+        });
+
+        // ファイル送信ボタン
+        sendFileButton.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            if (file) {
+                const fileURL = URL.createObjectURL(file);
+                appendToChat(`${userName} がファイルを送信しました: <a href="${fileURL}" download>${file.name}</a>`);
+                filePreview.innerHTML = '';  // Clear file preview
+                sendFileButton.style.display = 'none';  // Hide file send button
+            }
+        });
+
+        // 位置情報送信
+        locationButton.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const mapURL = `https://www.google.com/maps?q=${lat},${lon}&hl=ja`;
+
+                    const locationMessage = `${userName} の位置情報: <a href="${mapURL}" target="_blank">Googleマップで確認</a>`;
+                    appendToChat(locationMessage);
+                    mapElement.innerHTML = `<iframe src="https://www.google.com/maps?q=${lat},${lon}&hl=ja&z=10&output=embed" width="100%" height="300" frameborder="0" style="border:0;"></iframe>`;
+                });
+            }
+        });
+
+        // メッセージ追加
+        function appendToChat(message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('chat-message');
+            messageElement.innerHTML = message;
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;  // 最新メッセージにスクロール
+        }
+
+        // 通知表示
+        function showNotification() {
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);  // 3秒後に通知を非表示
+        }
+    </script>
+</body>
+</html>
